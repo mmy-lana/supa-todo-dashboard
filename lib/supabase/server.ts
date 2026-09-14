@@ -11,15 +11,20 @@ import 'server-only';
  *
  * Note: `cookies()` is asynchronous in Next.js 15+, so the factory itself is
  * `async` and must be awaited by callers.
+ *
+ * Same type note as `client.ts`: ssr 0.5.2's declarations target the old
+ * `SupabaseClient` generic order, so the static type is derived from
+ * `@supabase/supabase-js`'s `createClient` to keep table queries fully typed.
  */
 import { createServerClient, type CookieMethodsServer } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 import { Database } from '@/lib/supabase/database.types';
-import { SUPABASE_ANON_KEY, SUPABASE_COOKIE_OPTIONS, SUPABASE_URL } from '@/lib/supabase/config';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase/config';
 
-/** The exact client type produced by `createServerClient<Database>`. */
-export type ServerSupabaseClient = ReturnType<typeof createServerClient<Database>>;
+/** The canonical server client type, derived from supabase-js itself. */
+export type ServerSupabaseClient = ReturnType<typeof createClient<Database>>;
 
 /**
  * Creates a Supabase client bound to the cookies of the current request.
@@ -36,10 +41,11 @@ export async function createServerSupabaseClient(): Promise<ServerSupabaseClient
     setAll(cookiesToSet) {
       try {
         cookiesToSet.forEach(({ name, value, options: cookieOptions }) => {
-          cookieStore.set(name, value, {
-            ...SUPABASE_COOKIE_OPTIONS,
-            ...cookieOptions,
-          });
+          cookieStore.set(
+            name,
+            value,
+            cookieOptions as Parameters<typeof cookieStore.set>[2]
+          );
         });
       } catch {
         // `setAll` is invoked whenever the session is refreshed (e.g. while
@@ -50,7 +56,9 @@ export async function createServerSupabaseClient(): Promise<ServerSupabaseClient
     },
   };
 
-  return createServerClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const client = createServerClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: cookieMethods,
   });
+
+  return client as unknown as ServerSupabaseClient;
 }

@@ -24,6 +24,14 @@ export const PRIORITY_TONES: Record<PriorityLevel, BadgeTone> = {
   urgent: 'urgent',
 };
 
+/** Tailwind background classes for the small priority indicator dots. */
+export const PRIORITY_DOT_CLASSES: Record<PriorityLevel, string> = {
+  low: 'bg-priority-low',
+  medium: 'bg-priority-medium',
+  high: 'bg-priority-high',
+  urgent: 'bg-priority-urgent',
+};
+
 export interface PriorityBadgeProps {
   /** The priority level to display. */
   priority: PriorityLevel;

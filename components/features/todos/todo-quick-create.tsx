@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { PRIORITY_LABELS } from '@/components/compound/priority-badge';
+import { PRIORITY_DOT_CLASSES, PRIORITY_LABELS } from '@/components/compound/priority-badge';
 import { cn } from '@/lib/utils/cn';
 import { formatZodError, getErrorMessage } from '@/lib/utils/errors';
 import {
@@ -14,6 +14,7 @@ import {
   PRIORITY_LEVELS,
   type Category,
   type CreateTodoInput,
+  type DomainResult,
   type PriorityLevel,
 } from '@/lib/types/domain';
 
@@ -23,16 +24,10 @@ import {
  * Inline creation: title input (Enter submits), embedded category selector and
  * priority toggle buttons, and an explicit add button. Submission is validated
  * through `CreateTodoSchema` — parsed payloads flow to `onSubmit`, which the
- * owner (dashboard) persists via the todo hook. The input clears on success
- * and keeps focus for rapid entry.
+ * owner (dashboard) persists via the todo hook. `onSubmit` may resolve `void`
+ * or a `DomainResult`; a failed result surfaces inline, the input only clears
+ * on success, and focus returns for rapid entry.
  */
-
-const PRIORITY_DOT_CLASSES: Record<PriorityLevel, string> = {
-  low: 'bg-priority-low',
-  medium: 'bg-priority-medium',
-  high: 'bg-priority-high',
-  urgent: 'bg-priority-urgent',
-};
 
 export interface TodoQuickCreateProps {
   /** Categories the user can assign; rendered in the embedded selector. */
@@ -40,10 +35,13 @@ export interface TodoQuickCreateProps {
   /** Initial priority selection. Defaults to `medium`. */
   defaultPriority?: PriorityLevel;
   /**
-   * Persists a validated task. May return a promise; the bar shows a pending
-   * state until it settles and only then clears the input.
+   * Persists a validated task. May be async; the bar shows a pending state
+   * until it settles and only then clears the input. May also resolve a
+   * `DomainResult` whose `ok: false` renders as an inline error.
    */
-  onSubmit: (input: CreateTodoInput) => Promise<void> | void;
+  onSubmit: (
+    input: CreateTodoInput
+  ) => Promise<DomainResult<unknown> | void> | DomainResult<unknown> | void;
   /** Autofocus the title input on mount. */
   autoFocus?: boolean;
   /** Disable every control (e.g. while offline or during sync). */
@@ -92,7 +90,13 @@ export function TodoQuickCreate({
     setIsSubmitting(true);
 
     try {
-      await onSubmit(parsed.data);
+      const result = await onSubmit(parsed.data);
+
+      if (result && typeof result === 'object' && 'ok' in result && result.ok === false) {
+        setError(result.error);
+        return;
+      }
+
       setTitle('');
       setCategoryId('');
       setPriority(defaultPriority);
