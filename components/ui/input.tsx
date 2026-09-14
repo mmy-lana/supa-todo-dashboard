@@ -54,7 +54,7 @@ export function Input({
         aria-describedby={describedBy}
         data-invalid={invalid || undefined}
         className={cn(
-          'flex h-10 w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground shadow-sm transition-colors duration-150',
+          'flex h-10 w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground shadow-sm transition-colors duration-150 [@media(hover:none)]:h-11',
           'placeholder:text-muted-foreground/70',
           'aria-invalid:border-red-500 aria-invalid:focus-visible:ring-red-500/40',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
