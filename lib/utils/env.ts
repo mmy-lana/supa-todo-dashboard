@@ -78,25 +78,19 @@ function isPlaceholderValue(value: string): boolean {
 }
 
 /**
- * Reads a variable from `process.env` without referencing the `process` global
- * directly, keeping the module safe to bundle for the Edge runtime.
+ * Reads an environment variable using explicit member access so the Next.js
+ * bundler can statically inline NEXT_PUBLIC_* variables into client bundles.
  */
 function readRawEnv(name: EnvironmentVariableName): string | undefined {
-  const runtimeProcess: unknown = Reflect.get(globalThis, 'process');
-
-  if (typeof runtimeProcess !== 'object' || runtimeProcess === null) {
-    return undefined;
+  if (name === 'NEXT_PUBLIC_SUPABASE_URL') {
+    return process.env.NEXT_PUBLIC_SUPABASE_URL;
   }
 
-  const env: unknown = Reflect.get(runtimeProcess, 'env');
-
-  if (typeof env !== 'object' || env === null) {
-    return undefined;
+  if (name === 'NEXT_PUBLIC_SUPABASE_ANON_KEY') {
+    return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   }
 
-  const value: unknown = Reflect.get(env, name);
-
-  return typeof value === 'string' ? value : undefined;
+  return undefined;
 }
 
 function validateVariable(
@@ -200,19 +194,7 @@ export function getEnvironment(): Environment {
 }
 
 function isProductionRuntime(): boolean {
-  const runtimeProcess: unknown = Reflect.get(globalThis, 'process');
-
-  if (typeof runtimeProcess !== 'object' || runtimeProcess === null) {
-    return false;
-  }
-
-  const nodeEnv: unknown = Reflect.get(runtimeProcess, 'env');
-
-  if (typeof nodeEnv !== 'object' || nodeEnv === null) {
-    return false;
-  }
-
-  return Reflect.get(nodeEnv, 'NODE_ENV') === 'production';
+  return process.env.NODE_ENV === 'production';
 }
 
 /**
