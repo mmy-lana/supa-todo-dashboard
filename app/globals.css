@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-priority-low: #64748b;
+  --color-priority-medium: #f59e0b;
+  --color-priority-high: #f97316;
+  --color-priority-urgent: #e11d48;
+}
+
+:root {
+  --background: #fafafa;
+  --foreground: #09090b;
+}
