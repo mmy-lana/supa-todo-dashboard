@@ -13,8 +13,16 @@ import { SUPABASE_ANON_KEY, SUPABASE_COOKIE_OPTIONS, SUPABASE_URL } from '@/lib/
  * the same Edge isolate cannot clobber each other's cookie refresh.
  */
 
-/** Application routes that require an authenticated session. */
-const PROTECTED_PREFIXES: readonly string[] = ['/dashboard', '/api/auth/callback', '/api/protected'];
+/**
+ * Application routes that require an authenticated session.
+ *
+ * NOTE: `/api/auth/callback` is deliberately NOT protected. The callback is
+ * how a *sessionless* user exchanges the OAuth/email `?code=` for their first
+ * session (the route handler exchanges it and writes the cookies itself).
+ * Guarding it here would redirect every fresh sign-in to `/login` before the
+ * code could ever be consumed.
+ */
+const PROTECTED_PREFIXES: readonly string[] = ['/dashboard'];
 
 /** Authentication routes that require an *unauthenticated* session. */
 const AUTH_PREFIXES: readonly string[] = ['/login', '/register'];

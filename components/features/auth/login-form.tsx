@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,17 @@ import { AuthCredentialsSchema, type AuthCredentialsInput } from '@/lib/types/do
  * navigating, so middleware / server components immediately see the session.
  */
 
+/**
+ * Messages for the `?error=` codes emitted by `/api/auth/callback`.
+ * Keeping them here (rather than in the route) means the user-facing wording
+ * lives with the surface that renders it.
+ */
+const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
+  missing_code: 'That sign-in link is incomplete. Please sign in below or request a new link.',
+  exchange_failed: 'That sign-in link has expired or was already used. Please sign in again.',
+  unexpected_error: 'We could not complete that sign-in. Please try again.',
+};
+
 export interface LoginFormProps {
   /** Where to send the user after a successful sign-in. Defaults to `/`. */
   redirectTo?: string;
@@ -35,6 +46,13 @@ export function LoginForm({
   className,
 }: LoginFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const callbackErrorCode = searchParams.get('error');
+  const callbackErrorMessage = callbackErrorCode
+    ? (CALLBACK_ERROR_MESSAGES[callbackErrorCode] ??
+      'We could not complete that sign-in. Please try again.')
+    : null;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -92,7 +110,15 @@ export function LoginForm({
       noValidate
       className={cn('flex flex-col gap-4', className)}
     >
-      {formError ? <ErrorBanner title="Unable to sign in" message={formError} /> : null}
+      {formError ? (
+        <ErrorBanner title="Unable to sign in" message={formError} />
+      ) : callbackErrorMessage ? (
+        <ErrorBanner
+          tone="warning"
+          title="Sign-in link problem"
+          message={callbackErrorMessage}
+        />
+      ) : null}
 
       <Input
         type="email"

@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import {
+  forwardRef,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -49,19 +55,40 @@ export interface TodoQuickCreateProps {
   className?: string;
 }
 
-export function TodoQuickCreate({
-  categories,
-  defaultPriority = 'medium',
-  onSubmit,
-  autoFocus = false,
-  disabled = false,
-  className,
-}: TodoQuickCreateProps) {
-  const [title, setTitle] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [priority, setPriority] = useState<PriorityLevel>(defaultPriority);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+/**
+ * Imperative handle exposed to the dashboard shell so the mobile FAB can focus
+ * (and reveal) the composer without the parent reaching into the DOM.
+ */
+export interface TodoQuickCreateHandle {
+  focusTitle: () => void;
+}
+
+export const TodoQuickCreate = forwardRef<TodoQuickCreateHandle, TodoQuickCreateProps>(
+  function TodoQuickCreate(
+    {
+      categories,
+      defaultPriority = 'medium',
+      onSubmit,
+      autoFocus = false,
+      disabled = false,
+      className,
+    },
+    ref
+  ) {
+    const [title, setTitle] = useState('');
+    const [categoryId, setCategoryId] = useState('');
+    const [priority, setPriority] = useState<PriorityLevel>(defaultPriority);
+    const [error, setError] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const titleInputRef = useRef<HTMLInputElement>(null);
+
+    useImperativeHandle(ref, () => ({
+      focusTitle: () => {
+        titleInputRef.current?.focus();
+        titleInputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      },
+    }));
 
   const categoryOptions = [
     { value: '', label: 'No category' },
@@ -116,6 +143,7 @@ export function TodoQuickCreate({
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
         <Input
+          ref={titleInputRef}
           type="text"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -191,6 +219,7 @@ export function TodoQuickCreate({
           {error}
         </p>
       ) : null}
-    </form>
-  );
-}
+      </form>
+    );
+  }
+);
