@@ -146,6 +146,47 @@ export function useTodos(
     }
   }, []);
 
+  /**
+   * Reconciles `id` against PostgreSQL after a failed mutation. The stale
+   * optimistic snapshot is never re-applied blindly — that would clobber
+   * concurrent Realtime updates received while the request was in flight — so
+   * the authoritative row is fetched (single-item, category joined) and
+   * mirrored locally: returned to the caller when it exists, removed when it
+   * is gone (PGRST116), or converged through a full `refetch` if the targeted
+   * fetch itself fails. Returns the authoritative row, or null when the task
+   * no longer exists.
+   */
+  const reconcileTodo = useCallback(
+    async (id: string): Promise<TodoWithCategory | null> => {
+      const supabase = createBrowserSupabaseClient();
+
+      const { data, error: fetchError } = await supabase
+        .from('todos')
+        .select('*, category:categories(*)')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          // The row is gone (deleted remotely): mirror that by dropping it.
+          setTodos((previous) => previous.filter((item) => item.id !== id));
+          return null;
+        }
+
+        // Transient fetch failure (network drop, timeout): full pull instead.
+        await refetch();
+        return null;
+      }
+
+      const row = data as TodoWithCategory;
+      if (row.category) {
+        categoryCacheRef.current.set(row.category.id, row.category);
+      }
+      return row;
+    },
+    [refetch]
+  );
+
   /* ------------------------------------------------------------------ */
   /* Optimistic mutations                                               */
   /* ------------------------------------------------------------------ */
@@ -286,11 +327,13 @@ export function useTodos(
         );
       }
 
-      const revert = (): void => {
-        if (original) {
-          setTodos((previous) =>
-            previous.map((item) => (item.id === id ? original : item))
-          );
+      // Failure path: reconcile against the authoritative server row instead of
+      // restoring the stale pre-mutation snapshot, which could clobber
+      // concurrent Realtime updates received while the request was in flight.
+      const reconcile = async (): Promise<void> => {
+        const row = await reconcileTodo(id);
+        if (row) {
+          applyServerRow(id, row);
         }
       };
 
@@ -305,14 +348,14 @@ export function useTodos(
           .single();
 
         if (updateError) {
-          revert();
+          await reconcile();
           const message = getErrorMessage(updateError);
           setError(message);
           return { ok: false, error: message };
         }
 
         if (!data) {
-          revert();
+          await reconcile();
           const message = 'That task no longer exists.';
           setError(message);
           return { ok: false, error: message };
@@ -322,7 +365,7 @@ export function useTodos(
         applyServerRow(id, row);
         return { ok: true, data: row };
       } catch (updateError) {
-        revert();
+        await reconcile();
         const message = getErrorMessage(updateError);
         setError(message);
         return { ok: false, error: message };
@@ -330,7 +373,7 @@ export function useTodos(
         pendingMutationIds.current.delete(id);
       }
     },
-    [applyServerRow]
+    [applyServerRow, reconcileTodo]
   );
 
   const deleteTodo = useCallback(
@@ -344,8 +387,13 @@ export function useTodos(
         setTodos((previous) => previous.filter((item) => item.id !== id));
       }
 
-      const revert = (): void => {
-        if (!original) {
+      // Failure path: reconcile against the authoritative server row and restore
+      // it at its original position when it still exists. Blindly resurrecting
+      // the stale snapshot would clobber concurrent Realtime updates received
+      // while the delete request was in flight.
+      const reconcileRestore = async (): Promise<void> => {
+        const row = await reconcileTodo(id);
+        if (!row || originalIndex < 0) {
           return;
         }
         setTodos((previous) => {
@@ -353,7 +401,7 @@ export function useTodos(
             return previous;
           }
           const next = [...previous];
-          next.splice(Math.min(originalIndex, next.length), 0, original);
+          next.splice(Math.min(originalIndex, next.length), 0, row);
           return next;
         });
       };
@@ -364,7 +412,7 @@ export function useTodos(
         const { error: deleteError } = await supabase.from('todos').delete().eq('id', id);
 
         if (deleteError) {
-          revert();
+          await reconcileRestore();
           const message = getErrorMessage(deleteError);
           setError(message);
           return { ok: false, error: message };
@@ -372,7 +420,7 @@ export function useTodos(
 
         return { ok: true, data: null };
       } catch (deleteError) {
-        revert();
+        await reconcileRestore();
         const message = getErrorMessage(deleteError);
         setError(message);
         return { ok: false, error: message };
@@ -380,7 +428,7 @@ export function useTodos(
         pendingMutationIds.current.delete(id);
       }
     },
-    []
+    [reconcileTodo]
   );
 
   /* ------------------------------------------------------------------ */

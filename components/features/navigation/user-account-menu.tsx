@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { ChevronDown, LogOut, UserRound } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,15 @@ function getInitials(profile: Profile): string {
   return initials === '' ? '?' : initials;
 }
 
+/** True only for absolute `https:` URLs — the only URLs the image loader accepts. */
+function isSecureHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function UserAccountMenu({
   profile,
   variant = 'full',
@@ -55,12 +65,18 @@ export function UserAccountMenu({
   const [open, setOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const signOutRef = useRef<HTMLButtonElement>(null);
 
   const displayName = profile.full_name?.trim() || profile.email;
+
+  // Reset the avatar error fallback whenever the identity provider URL changes.
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [profile.avatar_url]);
 
   const handleSignOut = useCallback(async () => {
     if (isSigningOut) {
@@ -140,15 +156,14 @@ export function UserAccountMenu({
         )}
       >
         <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-foreground text-xs font-semibold text-background">
-          {profile.avatar_url ? (
-            // Remote avatar from the identity provider; plain <img> keeps this
-            // dependency-free and avoids next/image remote-pattern config.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+          {profile.avatar_url && !avatarFailed && isSecureHttpsUrl(profile.avatar_url) ? (
+            <Image
               src={profile.avatar_url}
-              alt=""
+              alt={displayName}
+              width={32}
+              height={32}
+              onError={() => setAvatarFailed(true)}
               className="size-8 rounded-full object-cover"
-              referrerPolicy="no-referrer"
             />
           ) : (
             getInitials(profile)

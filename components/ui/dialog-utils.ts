@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * Phase 2 / Step 2.4 (internal support) — shared dialog behavior.
@@ -112,10 +112,17 @@ export interface UseDialogBehaviorOptions {
 /**
  * Wires the accessibility behavior for a single dialog instance:
  *
- * - saves the previously focused element, focuses the target on open,
+ * - captures the previously focused element and focuses the target once, but
+ *   only on the `false -> true` open transition,
  * - listens for Escape and Tab (capture phase, so it wins over page handlers),
  * - locks body scroll while open,
  * - restores focus and scroll exactly once on close/unmount.
+ *
+ * Volatile references (`onOpenChange`, `initialFocusRef`, `panelRef`,
+ * `closeOnEscape`) are mirrored into stable refs so parent re-renders that
+ * recreate inline callbacks never re-run the open transition or the keydown
+ * listener. The initial focus therefore fires exactly once per open, and typed
+ * input inside the dialog keeps focus for the whole session.
  */
 export function useDialogBehavior({
   open,
@@ -124,8 +131,36 @@ export function useDialogBehavior({
   closeOnEscape = true,
   initialFocusRef,
 }: UseDialogBehaviorOptions): void {
+  // Stable mirrors of the volatile values passed by the parent. The mirroring
+  // effect below refreshes them after every render; the two behavior effects
+  // below depend only on `open`, so parent re-renders change nothing.
+  const onOpenChangeRef = useRef(onOpenChange);
+  const panelRefRef = useRef(panelRef);
+  const initialFocusRefRef = useRef<FocusableRef | undefined>(initialFocusRef);
+  const closeOnEscapeRef = useRef(closeOnEscape);
+
   useEffect(() => {
-    if (!open) {
+    onOpenChangeRef.current = onOpenChange;
+    panelRefRef.current = panelRef;
+    initialFocusRefRef.current = initialFocusRef;
+    closeOnEscapeRef.current = closeOnEscape;
+  });
+
+  // Tracks the last observed `open` value so the transition effect can
+  // distinguish a genuine `false -> true` open from any other re-render.
+  // Initialised to `false` so a dialog or sheet that mounts directly with
+  // `open=true` still runs the open setup (body scroll lock and initial focus)
+  // on its first render.
+  const prevOpenRef = useRef(false);
+
+  // Open/close transition: runs only when `open` changes. The focus work is
+  // gated on `prevOpenRef`, so even a future change to this effect's deps can
+  // never steal focus from an element the user is typing into.
+  useEffect(() => {
+    const didOpen = !prevOpenRef.current && open;
+    prevOpenRef.current = open;
+
+    if (!didOpen) {
       return;
     }
 
@@ -135,29 +170,44 @@ export function useDialogBehavior({
 
     const unlockScroll = lockBodyScroll();
 
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        if (closeOnEscape) {
-          event.preventDefault();
-          event.stopPropagation();
-          onOpenChange(false);
-        }
-      } else if (event.key === 'Tab' && panelRef.current) {
-        trapFocus(panelRef.current, event);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, true);
-
-    const target = initialFocusRef?.current ?? panelRef.current;
+    const target = initialFocusRefRef.current?.current ?? panelRefRef.current?.current;
     target?.focus({ preventScroll: true });
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
       unlockScroll();
       if (previouslyFocused && document.contains(previouslyFocused)) {
         previouslyFocused.focus({ preventScroll: true });
       }
     };
-  }, [open, panelRef, onOpenChange, closeOnEscape, initialFocusRef]);
+  }, [open]);
+
+  // Keydown listener: mounted while the dialog is open. Reads the latest
+  // callbacks through the refs above, so it never re-subscribes when the
+  // parent re-renders and re-creates `onOpenChange`.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        if (closeOnEscapeRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenChangeRef.current(false);
+        }
+      } else if (event.key === 'Tab') {
+        const panel = panelRefRef.current?.current;
+        if (panel) {
+          trapFocus(panel, event);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [open]);
 }

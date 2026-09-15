@@ -30,7 +30,13 @@ export function computeTodoStats(
   }
 
   const total = todos.length;
-  const completionRate = total === 0 ? 0 : (completed / total) * 100;
+  const completionRate =
+    total === 0
+      ? 0
+      : // Round at the calculation boundary and clamp to the guaranteed
+        // 0-100 integer range, so IEEE 754 artifacts (e.g. 66.66666666666667
+        // for 2 of 3 tasks) never leak into downstream state and pipelines.
+        Math.min(100, Math.max(0, Math.round((completed / total) * 100)));
 
   return {
     total,
