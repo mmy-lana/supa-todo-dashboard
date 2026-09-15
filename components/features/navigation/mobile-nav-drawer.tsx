@@ -27,6 +27,10 @@ export interface MobileNavDrawerProps {
   selectedCategoryId: string | null;
   /** Receives category filter changes. */
   onSelectCategory: (categoryId: string | null) => void;
+  /** Instant modal opening callback. */
+  onOpenModal?: (view: 'categories' | 'settings') => void;
+  /** Active modal state. */
+  activeModal?: 'categories' | 'settings' | null;
 }
 
 export function MobileNavDrawer({
@@ -36,6 +40,8 @@ export function MobileNavDrawer({
   categories,
   selectedCategoryId,
   onSelectCategory,
+  onOpenModal,
+  activeModal,
 }: MobileNavDrawerProps) {
   const close = (): void => onOpenChange(false);
 
@@ -52,7 +58,11 @@ export function MobileNavDrawer({
       footer={<SignOutButton onSignedOut={close} />}
     >
       <div className="flex flex-col gap-4">
-        <NavigationLinks onNavigate={close} />
+        <NavigationLinks
+          onNavigate={close}
+          onOpenModal={onOpenModal}
+          activeModal={activeModal}
+        />
 
         <div className="h-px bg-border" role="separator" />
 

@@ -36,6 +36,10 @@ export interface DashboardShellProps {
   onSelectCategory: (categoryId: string | null) => void;
   /** Invoked by the mobile FAB to create a task. */
   onCreateTask?: () => void;
+  /** Direct client handler for opening modals instantly. */
+  onOpenModal?: (view: 'categories' | 'settings') => void;
+  /** Currently active view modal. */
+  activeModal?: 'categories' | 'settings' | null;
   /** Page content. */
   children: React.ReactNode;
 }
@@ -47,6 +51,8 @@ export function DashboardShell({
   selectedCategoryId,
   onSelectCategory,
   onCreateTask,
+  onOpenModal,
+  activeModal,
   children,
 }: DashboardShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -59,6 +65,8 @@ export function DashboardShell({
         stats={stats}
         selectedCategoryId={selectedCategoryId}
         onSelectCategory={onSelectCategory}
+        onOpenModal={onOpenModal}
+        activeModal={activeModal}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -76,6 +84,8 @@ export function DashboardShell({
         categories={categories}
         selectedCategoryId={selectedCategoryId}
         onSelectCategory={onSelectCategory}
+        onOpenModal={onOpenModal}
+        activeModal={activeModal}
       />
 
       {/*

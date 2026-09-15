@@ -33,52 +33,71 @@ export interface NavItem {
 }
 
 /** Primary workspace destinations. */
-export const NAV_ITEMS: readonly NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/?view=categories', label: 'Categories', icon: Tags, view: 'categories' },
-  { href: '/?view=settings', label: 'Settings', icon: Settings, view: 'settings' },
-];
+export const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'categories', label: 'Categories', icon: Tags },
+  { id: 'settings', label: 'Settings', icon: Settings },
+] as const;
 
 export interface NavigationLinksProps {
   /** Called after a link is activated (used to close the mobile drawer). */
   onNavigate?: () => void;
+  /** Direct client handler for instant modal opening without server round-trips. */
+  onOpenModal?: (view: 'categories' | 'settings') => void;
+  /** Currently active view modal. */
+  activeModal?: 'categories' | 'settings' | null;
   className?: string;
 }
 
 export function NavigationLinks({
   onNavigate,
+  onOpenModal,
+  activeModal = null,
   className,
 }: NavigationLinksProps) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const isItemActive = (item: NavItem): boolean => {
-    if (item.view !== undefined) {
-      // View destinations (Categories, Settings) open a modal; they are active
-      // only while their `?view=` parameter points at them.
-      return pathname === '/' && searchParams.get('view') === item.view;
-    }
-
-    // Dashboard is the root route: active only for the clean base view, i.e.
-    // no `view` modal parameter and no `status` filter parameter. Task status
-    // filtering is component state inside the TodoFilterBar, never the URL.
-    return pathname === '/' && !searchParams.has('view') && !searchParams.has('status');
-  };
-
   return (
     <nav aria-label="Workspace" className={cn('flex flex-col gap-0.5', className)}>
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
-        const isActive = isItemActive(item);
+        const isActive =
+          item.id === 'dashboard'
+            ? activeModal === null
+            : activeModal === item.id;
+
+        if (item.id === 'dashboard') {
+          return (
+            <Link
+              key={item.id}
+              href="/"
+              onClick={() => {
+                onNavigate?.();
+              }}
+              aria-current={isActive ? 'page' : undefined}
+              className={cn(
+                'flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                isActive
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        }
 
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={isActive ? 'page' : undefined}
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              onOpenModal?.(item.id);
+              onNavigate?.();
+            }}
+            aria-pressed={isActive}
             className={cn(
-              'flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               isActive
                 ? 'bg-muted text-foreground'
@@ -87,7 +106,7 @@ export function NavigationLinks({
           >
             <Icon className="size-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{item.label}</span>
-          </Link>
+          </button>
         );
       })}
     </nav>

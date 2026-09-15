@@ -24,6 +24,10 @@ export interface DesktopSidebarProps {
   selectedCategoryId: string | null;
   /** Receives category filter changes. */
   onSelectCategory: (categoryId: string | null) => void;
+  /** Instant modal opening callback. */
+  onOpenModal?: (view: 'categories' | 'settings') => void;
+  /** Active modal state. */
+  activeModal?: 'categories' | 'settings' | null;
   className?: string;
 }
 
@@ -33,6 +37,8 @@ export function DesktopSidebar({
   stats,
   selectedCategoryId,
   onSelectCategory,
+  onOpenModal,
+  activeModal,
   className,
 }: DesktopSidebarProps) {
   return (
@@ -48,7 +54,7 @@ export function DesktopSidebar({
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        <NavigationLinks />
+        <NavigationLinks onOpenModal={onOpenModal} activeModal={activeModal} />
 
         <div className="my-3 h-px bg-border" role="separator" />
 

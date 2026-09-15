@@ -64,7 +64,6 @@ export function TodoWorkspace({
   initialTodos,
   initialCategories,
 }: TodoWorkspaceProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [filters, setFilters] = useState<TodoFilterParams>({ ...DEFAULT_TODO_FILTERS });
@@ -74,17 +73,21 @@ export function TodoWorkspace({
   const [newCategoryColor, setNewCategoryColor] = useState<string>(CATEGORY_COLOR_PRESETS[0]);
   const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
 
+  // Instant local modal state eliminates server-side RSC re-render latency
+  const [activeModal, setActiveModal] = useState<'categories' | 'settings' | null>(() => {
+    const initialView = searchParams.get('view');
+    return initialView === 'categories' || initialView === 'settings' ? initialView : null;
+  });
+
   const quickCreateRef = useRef<TodoQuickCreateHandle>(null);
 
-  // Task status filtering is local component state owned by the TodoFilterBar
-  // (All / Active / Completed). It is deliberately NOT synced to route query
-  // parameters: routing owns only `?view=` (Categories / Settings modals), so
-  // the navigation and the workspace can never split-brain.
+  const openModal = useCallback((view: 'categories' | 'settings') => {
+    setActiveModal(view);
+  }, []);
 
-  const activeView = searchParams.get('view');
-  const closeViewModal = useCallback(() => {
-    router.push('/');
-  }, [router]);
+  const closeModal = useCallback(() => {
+    setActiveModal(null);
+  }, []);
 
   const {
     todos,
@@ -185,6 +188,8 @@ export function TodoWorkspace({
       selectedCategoryId={filters.categoryId}
       onSelectCategory={handleSelectCategory}
       onCreateTask={handleFocusQuickCreate}
+      onOpenModal={openModal}
+      activeModal={activeModal}
     >
       <div className="flex flex-col gap-5">
         {/* Page heading */}
@@ -286,11 +291,11 @@ export function TodoWorkspace({
         onDelete={handleDeleteTodo}
       />
 
-      {/* Categories Manager Modal (?view=categories) */}
+      {/* Categories Manager Modal */}
       <Modal
-        open={activeView === 'categories'}
+        open={activeModal === 'categories'}
         onOpenChange={(open) => {
-          if (!open) closeViewModal();
+          if (!open) closeModal();
         }}
         title="Manage Categories"
         description="Organize tasks into custom labeled categories."
@@ -378,11 +383,11 @@ export function TodoWorkspace({
         </div>
       </Modal>
 
-      {/* Settings Modal (?view=settings) */}
+      {/* Settings Modal */}
       <Modal
-        open={activeView === 'settings'}
+        open={activeModal === 'settings'}
         onOpenChange={(open) => {
-          if (!open) closeViewModal();
+          if (!open) closeModal();
         }}
         title="Workspace Settings"
         description="Manage your account profile and application defaults."
