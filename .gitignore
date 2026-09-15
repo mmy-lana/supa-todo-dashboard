@@ -9,3 +9,5 @@ dist
 setup.sh
 .pnpm-store
 *.tsbuildinfo
+audit.md
+repomix-output.xml

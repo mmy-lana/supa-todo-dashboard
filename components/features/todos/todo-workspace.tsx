@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Tag, Trash2 } from 'lucide-react';
 
@@ -76,15 +76,10 @@ export function TodoWorkspace({
 
   const quickCreateRef = useRef<TodoQuickCreateHandle>(null);
 
-  // Sync route query parameters (?status=active, etc.) into workspace filters
-  useEffect(() => {
-    const statusParam = searchParams.get('status');
-    if (statusParam === 'active' || statusParam === 'completed' || statusParam === 'all') {
-      setFilters((prev) => (prev.status === statusParam ? prev : { ...prev, status: statusParam }));
-    } else if (!statusParam && !searchParams.get('view')) {
-      setFilters((prev) => (prev.status === 'all' ? prev : { ...prev, status: 'all' }));
-    }
-  }, [searchParams]);
+  // Task status filtering is local component state owned by the TodoFilterBar
+  // (All / Active / Completed). It is deliberately NOT synced to route query
+  // parameters: routing owns only `?view=` (Categories / Settings modals), so
+  // the navigation and the workspace can never split-brain.
 
   const activeView = searchParams.get('view');
   const closeViewModal = useCallback(() => {

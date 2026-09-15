@@ -17,15 +17,21 @@ export const SUPABASE_ANON_KEY: string = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 /**
  * Cookie options shared by every Supabase client in the application.
  *
- * `sameSite: 'lax'` keeps the session cookie usable across the OAuth/email
- * redirect back from Supabase while still blocking cross-site form posts.
+ * Only the two attributes that are genuinely application-wide are pinned here:
+ * `path: '/'` scopes every route, and `sameSite: 'lax'` keeps the session
+ * cookie usable across the OAuth/email redirect back from Supabase while still
+ * blocking cross-site form posts.
+ *
+ * All remaining attribute decisions — lifetime, the `secure` flag, and
+ * `httpOnly` — are delegated to `@supabase/ssr`, which natively owns the
+ * cookie encoding for both runtimes. The application never forces
+ * `httpOnly: false`, so session cookies are not explicitly exposed to
+ * client-side scripts; the browser client still functions because
+ * `@supabase/ssr` serializes the attributes it needs for `document.cookie`.
  */
 export const SUPABASE_COOKIE_OPTIONS = {
   path: '/',
   sameSite: 'lax',
-  // Supabase refresh tokens must survive a browser restart; the SDK sets
-  // `maxAge` explicitly on each cookie it writes.
-  httpOnly: false,
 } as const;
 
 /**

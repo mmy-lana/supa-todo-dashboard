@@ -22,16 +22,26 @@ const CALLBACK_ERRORS = {
   unexpected: 'unexpected_error',
 } as const;
 
-/** Only same-origin, absolute-path redirects are honoured (open-redirect guard). */
+/**
+ * Resolves the `next` query parameter into a strictly same-origin, relative
+ * path (open-redirect guard). The input is parsed against a dummy base URL:
+ * anything that resolves away from that origin — absolute URLs, scheme-
+ * relative `//host` URLs, or backslash aliases of them — falls back to the
+ * default post-auth path. Only the normalized pathname and search string are
+ * echoed back, so no query value can smuggle a protocol or foreign host.
+ */
 function resolveNextPath(rawNext: string | null): string {
-  if (!rawNext) {
+  if (!rawNext) return AUTH_REDIRECT_PATHS.afterAuth;
+  try {
+    // Validate using dummy base to ensure it is strictly a relative path on the same host
+    const parsed = new URL(rawNext, 'http://localhost');
+    if (parsed.origin !== 'http://localhost') return AUTH_REDIRECT_PATHS.afterAuth;
+    // Disallow scheme protocol relative URLs like '//evil.com'
+    if (rawNext.startsWith('//') || rawNext.startsWith('/\\')) return AUTH_REDIRECT_PATHS.afterAuth;
+    return parsed.pathname + parsed.search;
+  } catch {
     return AUTH_REDIRECT_PATHS.afterAuth;
   }
-
-  const isSafeRelativePath =
-    rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes('\\');
-
-  return isSafeRelativePath ? rawNext : AUTH_REDIRECT_PATHS.afterAuth;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
