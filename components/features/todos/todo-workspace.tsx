@@ -1,9 +1,14 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Plus, Tag, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { cn } from '@/lib/utils/cn';
+import { CATEGORY_COLOR_PRESETS } from '@/lib/types/domain';
 import { ErrorBanner } from '@/components/compound/error-banner';
 import { StatCardGrid } from '@/components/compound/stat-card';
 import { DashboardShell } from '@/components/features/navigation/dashboard-shell';
@@ -59,11 +64,32 @@ export function TodoWorkspace({
   initialTodos,
   initialCategories,
 }: TodoWorkspaceProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [filters, setFilters] = useState<TodoFilterParams>({ ...DEFAULT_TODO_FILTERS });
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryColor, setNewCategoryColor] = useState<string>(CATEGORY_COLOR_PRESETS[0]);
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
 
   const quickCreateRef = useRef<TodoQuickCreateHandle>(null);
+
+  // Sync route query parameters (?status=active, etc.) into workspace filters
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    if (statusParam === 'active' || statusParam === 'completed' || statusParam === 'all') {
+      setFilters((prev) => (prev.status === statusParam ? prev : { ...prev, status: statusParam }));
+    } else if (!statusParam && !searchParams.get('view')) {
+      setFilters((prev) => (prev.status === 'all' ? prev : { ...prev, status: 'all' }));
+    }
+  }, [searchParams]);
+
+  const activeView = searchParams.get('view');
+  const closeViewModal = useCallback(() => {
+    router.push('/');
+  }, [router]);
 
   const {
     todos,
@@ -78,8 +104,13 @@ export function TodoWorkspace({
     deleteTodo,
   } = useTodos(initialTodos, profile.id);
 
-  const { categories, error: categoriesError, clearError: clearCategoriesError } =
-    useCategories(profile.id, initialCategories);
+  const {
+    categories,
+    error: categoriesError,
+    clearError: clearCategoriesError,
+    createCategory,
+    deleteCategory,
+  } = useCategories(profile.id, initialCategories);
 
   /* ---------------------------- derived state ---------------------------- */
 
@@ -259,6 +290,122 @@ export function TodoWorkspace({
         onSave={updateTodo}
         onDelete={handleDeleteTodo}
       />
+
+      {/* Categories Manager Modal (?view=categories) */}
+      <Modal
+        open={activeView === 'categories'}
+        onOpenChange={(open) => {
+          if (!open) closeViewModal();
+        }}
+        title="Manage Categories"
+        description="Organize tasks into custom labeled categories."
+        size="md"
+      >
+        <div className="flex flex-col gap-5">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newCategoryName.trim()) return;
+              setCategoryFormError(null);
+              const res = await createCategory({
+                name: newCategoryName.trim(),
+                color_hex: newCategoryColor,
+              });
+              if (!res.ok) {
+                setCategoryFormError(res.error);
+                return;
+              }
+              setNewCategoryName('');
+            }}
+            className="flex flex-col gap-3 rounded-lg border border-border p-3"
+          >
+            <Input
+              label="Category Name"
+              placeholder="e.g. Work, Personal, Marketing"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              errorMessage={categoryFormError}
+              invalid={categoryFormError !== null}
+            />
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Accent Color</span>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORY_COLOR_PRESETS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setNewCategoryColor(color)}
+                    className={cn(
+                      'size-7 rounded-full border-2 transition-transform',
+                      newCategoryColor === color ? 'scale-110 border-foreground' : 'border-transparent hover:scale-105'
+                    )}
+                    style={{ backgroundColor: color }}
+                    aria-label={`Select color ${color}`}
+                  />
+                ))}
+              </div>
+            </div>
+            <Button type="submit" size="sm" className="mt-1 self-end">
+              <Tag className="size-4" aria-hidden="true" />
+              Create Category
+            </Button>
+          </form>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Existing Categories ({categories.length})
+            </span>
+            {categories.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">No categories created yet.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+                {categories.map((cat) => (
+                  <li key={cat.id} className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="size-3 rounded-full" style={{ backgroundColor: cat.color_hex }} />
+                      <span className="text-sm font-medium text-foreground">{cat.name}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteCategory(cat.id)}
+                      className="size-8 text-muted-foreground hover:text-red-600"
+                      aria-label={`Delete ${cat.name}`}
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Settings Modal (?view=settings) */}
+      <Modal
+        open={activeView === 'settings'}
+        onOpenChange={(open) => {
+          if (!open) closeViewModal();
+        }}
+        title="Workspace Settings"
+        description="Manage your account profile and application defaults."
+        size="md"
+      >
+        <div className="flex flex-col gap-4 py-2">
+          <div className="rounded-lg border border-border p-3.5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Account Profile</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{profile.full_name ?? 'User'}</p>
+            <p className="text-xs text-muted-foreground">{profile.email}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3.5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Database Sync</p>
+            <p className="mt-1 text-sm text-foreground">PostgreSQL Row Level Security enabled</p>
+            <p className="text-xs text-muted-foreground">Connected to Supabase Realtime CDC</p>
+          </div>
+        </div>
+      </Modal>
     </DashboardShell>
   );
 }

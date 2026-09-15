@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { LayoutDashboard, ListTodo, Settings, Tags } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -39,14 +40,20 @@ export interface NavigationLinksProps {
 
 export function NavigationLinks({
   onNavigate,
-  activeHref = '/',
+  activeHref,
   className,
 }: NavigationLinksProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const queryString = searchParams.toString();
+  const currentHref = queryString ? `${pathname}?${queryString}` : pathname;
+
   return (
     <nav aria-label="Workspace" className={cn('flex flex-col gap-0.5', className)}>
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
-        const isActive = item.href === activeHref;
+        const isActive = activeHref !== undefined ? item.href === activeHref : item.href === currentHref;
 
         return (
           <Link
